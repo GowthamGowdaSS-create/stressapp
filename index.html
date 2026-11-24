@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CalmPath – Stress Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--navy:#0b2545;--navy2:#13315c;--green:#8fd6a8;--green2:#e3f5ea;--bg:#f3f8f6;--tx:#17263a;--mut:#5b6b7d}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--tx)}
+#side{position:fixed;inset:0 auto 0 0;width:240px;background:var(--navy);color:#fff;padding:16px 10px;overflow:auto;transition:.2s;z-index:5}
+#side h1{font-size:20px;margin:0 8px 14px;color:var(--green)}#side a{display:block;color:#cfe0f3;padding:10px 12px;border-radius:8px;text-decoration:none;font-size:14px}
+#side a.on,#side a:hover{background:var(--navy2);color:#fff}
+#main{margin-left:240px;padding:24px;max-width:1200px}#burger{display:none;position:fixed;top:10px;right:10px;z-index:6;background:var(--navy);color:#fff;border:0;border-radius:8px;padding:8px 12px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 6px #0b25451a;margin-bottom:16px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.stat b{font-size:28px;color:var(--navy)}.stat span{display:block;color:var(--mut);font-size:13px}
+h2{margin-top:0;color:var(--navy)}button,.btn{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+.btn2{background:var(--green);color:var(--navy)}.ghost{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+input,select,textarea{width:100%;padding:10px;border:1px solid #c6d3df;border-radius:8px;margin:4px 0 12px;font:inherit}input[type=range]{padding:0}
+label{font-size:14px;font-weight:600}.chk label{font-weight:400;display:inline-block;margin:0 12px 6px 0}.chk input{width:auto;margin:0 4px 0 0}
+.note{background:#fff8e1;border-left:4px solid #e0a800;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px}.err{color:#b3261e;font-size:14px;min-height:18px}
+.tag{display:inline-block;background:var(--green2);color:#1e5a37;border-radius:20px;padding:2px 10px;font-size:12px;margin-right:4px}
+.ex{font-size:44px;background:var(--green2);border-radius:12px;text-align:center;padding:14px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e3ebf2}
+#timer{font-size:56px;font-weight:700;color:var(--navy);text-align:center;margin:10px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#auth{max-width:420px;margin:7vh auto;padding:16px}.canv{position:relative;height:260px}
+@media(max-width:800px){#side{transform:translateX(-100%)}#side.open{transform:none}#main{margin-left:0;padding:14px;padding-top:54px}#burger{display:block}}
+</style></head><body>
+<div id="auth" style="display:none"></div>
+<button id="burger" onclick="side.classList.toggle('open')">☰ Menu</button>
+<nav id="side" style="display:none"></nav><div id="main" style="display:none"></div>
+<script>
+/* ===== 1. FIREBASE CONFIG – paste your own (see README.md) ===== */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDub7IMv0IWiU0KDsWEgd3hqqvall4Ri7s",
+  authDomain: "stressmanagement-de0f3.firebaseapp.com",
+  databaseURL: "https://stressmanagement-de0f3-default-rtdb.firebaseio.com",
+  projectId: "stressmanagement-de0f3",
+  storageBucket: "stressmanagement-de0f3.firebasestorage.app",
+  messagingSenderId: "132868140879",
+  appId: "1:132868140879:web:38c18ed3856cd735b71f3a",
+  measurementId: "G-FH5H4733VV"
+};
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore();
+const $=s=>document.querySelector(s),side=$('#side'),main=$('#main');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtD=t=>new Date(t).toLocaleDateString(),fmtDT=t=>new Date(t).toLocaleString(),mins=s=>(s/60).toFixed(1);
+/* ===== 2. Exercise catalogue (sample content) ===== */
+const E=[
+{id:'yoga',name:'Yoga',cat:'Traditional',icon:'🧘',tags:['yoga'],phys:2,dur:20,lvl:'Beginner',desc:'Gentle postures linked with steady breathing.',steps:['Find a quiet space with a mat','Move through cat-cow, child pose, forward fold','Hold each pose 5 slow breaths','Finish lying down for 1 minute'],ben:['Releases muscle tension','Improves flexibility','Focuses attention']},
+{id:'prana',name:'Pranayama',cat:'Traditional',icon:'🌬️',tags:['breathing'],phys:0,dur:10,lvl:'Beginner',desc:'Yogic breath control such as alternate-nostril breathing.',steps:['Sit tall and relax shoulders','Close right nostril, inhale left for 4','Close both, hold 2; exhale right for 6','Alternate sides for 10 rounds'],ben:['Slows breathing','Promotes calm focus']},
+{id:'med',name:'Meditation',cat:'Traditional',icon:'🪷',tags:['meditation'],phys:0,dur:10,lvl:'Beginner',desc:'Seated quiet attention on one anchor such as the breath.',steps:['Sit comfortably, eyes closed','Follow the breath at the nose','When the mind wanders, gently return','End by noticing the body for 30 seconds'],ben:['Builds calm awareness','Reduces rumination']},
+{id:'taichi',name:'Tai Chi',cat:'Traditional',icon:'☯️',tags:['movement'],phys:2,dur:20,lvl:'Intermediate',desc:'Slow, flowing movements with deep breathing.',steps:['Stand shoulder-width, knees soft','Shift weight slowly side to side','Raise and lower arms with the breath','Repeat flowing sequence 10 times'],ben:['Improves balance','Calms the mind']},
+{id:'pmr',name:'Progressive Muscle Relaxation',cat:'Traditional',icon:'💆',tags:['relaxation'],phys:0,dur:15,lvl:'Beginner',desc:'Tense then release muscle groups one by one.',steps:['Lie down comfortably','Tense feet for 5 seconds, release 10','Move up: calves, thighs, belly, hands, shoulders, face','Rest and breathe slowly'],ben:['Reduces physical tension','Teaches body awareness']},
+{id:'breath',name:'Breathing Exercises',cat:'Traditional',icon:'🫁',tags:['breathing','relaxation'],phys:0,dur:5,lvl:'Beginner',desc:'Slow diaphragmatic breathing, longer exhale than inhale.',steps:['Hand on belly','Inhale through nose for 4','Exhale gently for 6','Continue for 5 minutes'],ben:['Quick calming','Easy anywhere']},
+{id:'mind',name:'Mindfulness',cat:'Traditional',icon:'🌿',tags:['mindfulness','meditation'],phys:0,dur:10,lvl:'Beginner',desc:'Notice thoughts, sounds and sensations without judging.',steps:['Sit and notice 5 things you hear','Notice body sensations','Label thoughts "thinking" and let go','Close by noticing your breath'],ben:['Reduces reactivity','Grounds attention']},
+{id:'yoga-breath',name:'Yoga + Breathing',cat:'Hybrid',icon:'🧘‍♀️',tags:['yoga','breathing'],phys:2,dur:20,lvl:'Beginner',desc:'Easy yoga poses synchronised with controlled breathing.',steps:['Inhale arms up, exhale fold forward','Hold child pose for 5 long breaths','Repeat cat-cow with breath for 2 minutes','Finish with 2 minutes seated breathing'],ben:['Combines movement and breath','Eases tension']},
+{id:'walk-mind',name:'Walking + Mindfulness',cat:'Hybrid',icon:'🚶',tags:['walking','mindfulness'],phys:2,dur:15,lvl:'Beginner',desc:'Slow walking while noticing steps, sounds and surroundings.',steps:['Walk at an easy pace','Feel each foot touch the ground','Notice sights and sounds','If distracted, return to your steps'],ben:['Gentle activity','Breaks stress loops']},
+{id:'stretch-med',name:'Stretching + Meditation',cat:'Hybrid',icon:'🤸',tags:['stretching','meditation'],phys:1,dur:15,lvl:'Beginner',desc:'Slow stretches followed by seated meditation.',steps:['Neck rolls and shoulder circles','Seated forward fold, hold 30 seconds','Side stretches each way','Sit for 5 minutes of quiet meditation'],ben:['Loosens muscles','Calms the mind']},
+{id:'aerobic-relax',name:'Light Aerobic + Relaxation',cat:'Hybrid',icon:'🏃',tags:['aerobic','relaxation'],phys:3,dur:25,lvl:'Intermediate',desc:'Light cardio then a guided cool-down relaxation.',steps:['10 minutes brisk walk or easy cycling','5 minutes slow-down walk','Lie down, relax each muscle group','Breathe slowly for 3 minutes'],ben:['Raises energy','Ends in relaxation']},
+{id:'yoga-pmr',name:'Yoga + Progressive Muscle Relaxation',cat:'Hybrid',icon:'🛌',tags:['yoga','relaxation'],phys:2,dur:25,lvl:'Beginner',desc:'Restorative poses combined with tense-release relaxation.',steps:['Supported child pose for 2 minutes','Legs-up-the-wall for 3 minutes','Tense and release each muscle group','Rest quietly for 2 minutes'],ben:['Deep physical rest','Restorative']}];
+/* Adjustable project-defined ranges */
+const BANDS=[{max:25,ids:['walk-mind','stretch-med']},{max:50,ids:['yoga','prana','med']},{max:75,ids:['breath','yoga-pmr','walk-mind','mind']},{max:100,ids:['breath','pmr','med']}];
+const PREFS=['yoga','breathing','meditation','mindfulness','walking','stretching','relaxation','aerobic','movement'];
+/* ===== 3. Transparent rule-based engine (mirrors recommender.py). Not a trained AI model. ===== */
+function recommend(){const a=A[0];if(!a)return[];const b=BANDS.find(x=>a.stressPercentage<=x.max).ids,week=S.filter(x=>Date.now()-x.ts<6048e5);
+return E.map(e=>{let sc=0,why=[];
+if(b.includes(e.id)){sc+=5;why.push('fits your stress range')}
+if((U.preferences||[]).some(t=>e.tags.includes(t))){sc+=2;why.push('matches your preferences')}
+if(e.dur>a.availableTime){sc-=3;why.push('longer than your available time')}else sc+=1;
+if(['Anxious','Sad','Overwhelmed'].includes(a.mood)&&e.tags.some(t=>['breathing','meditation','relaxation'].includes(t))){sc+=1;why.push('calming for your mood')}
+const low=a.sleepQuality<=2||a.mentalFatigue>=4;if(low&&e.phys<=1){sc+=1;why.push('low effort given sleep/fatigue')}if(low&&e.phys>=3)sc-=2;
+if(U.limitations&&e.phys>=2){sc-=e.phys-1;why.push('involves movement; you noted limitations')}
+if(week.filter(x=>x.exerciseId===e.id).length>=3){sc-=1;why.push('done often this week')}
+return{e,sc,why}}).sort((x,y)=>y.sc-x.sc).slice(0,4)}
+/* ===== 4. State + data ===== */
+let U={},A=[],S=[],T={id:null,acc:0,start:0,run:false,iv:null,done:false},charts={};
+const ref=()=>db.collection('Users').doc(auth.currentUser.uid);
+async function load(){const r=ref(),d=await r.get();U=d.exists?d.data():{};
+const m=q=>q.docs.map(x=>({id:x.id,...x.data(),ts:x.data().timestamp.toMillis()}));
+A=m(await r.collection('StressAssessments').orderBy('timestamp','desc').get());S=m(await r.collection('ExerciseSessions').orderBy('timestamp','desc').get())}
+function ch(id,cfg){charts[id]?.destroy();const c=document.getElementById(id);if(c)charts[id]=new Chart(c,{...cfg,options:{responsive:true,maintainAspectRatio:false,...(cfg.options||{})}})}
+const empty='<p style="color:#5b6b7d">No saved data yet.</p>';
+/* ===== 5. Auth screens ===== */
+function authView(mode='login'){side.style.display=main.style.display='none';const a=$('#auth');a.style.display='block';
+const warn=firebaseConfig.apiKey.startsWith('YOUR')?'<div class="note">Firebase is not configured yet. Edit <b>cfg</b> in index.html (see README.md).</div>':'';
+a.innerHTML=`<div class="card"><h2>🌿 CalmPath</h2>${warn}<div class="note">Stress percentage is self-reported and not a medical diagnosis.</div>
+${mode=='register'?'<label>Full name</label><input id="nm">':''}<label>Email</label><input id="em" type="email">
+${mode!='forgot'?'<label>Password</label><input id="pw" type="password">':''}<div class="err" id="er"></div>
+<button id="go">${{login:'Log in',register:'Create account',forgot:'Send reset link'}[mode]}</button>
+<p>${mode!='login'?'<a href="#" id="l1">Log in</a> · ':''}${mode!='register'?'<a href="#" id="l2">Register</a> · ':''}${mode!='forgot'?'<a href="#" id="l3">Forgot password?</a>':''}</p></div>`;
+const sw=(id,m)=>{const el=$(id);if(el)el.onclick=e=>{e.preventDefault();authView(m)}};sw('#l1','login');sw('#l2','register');sw('#l3','forgot');
+$('#go').onclick=async()=>{const er=$('#er'),em=$('#em').value.trim(),pw=$('#pw')?.value||'',nm=$('#nm')?.value.trim();er.textContent='';
+if(!/^\S+@\S+\.\S+$/.test(em))return er.textContent='Enter a valid email.';
+if(mode!='forgot'&&pw.length<6)return er.textContent='Password must be at least 6 characters.';
+if(mode=='register'&&!nm)return er.textContent='Enter your full name.';
+try{if(mode=='login')await auth.signInWithEmailAndPassword(em,pw);
+else if(mode=='register'){const c=await auth.createUserWithEmailAndPassword(em,pw);await db.collection('Users').doc(c.user.uid).set({name:nm,email:em,preferences:[],fitnessLevel:'Beginner',favorites:[]})}
+else{await auth.sendPasswordResetEmail(em);er.style.color='#1e5a37';er.textContent='Reset link sent if the account exists.'}}
+catch(e){er.textContent=e.message.replace('Firebase: ','')}}}
+auth.onAuthStateChanged(async u=>{if(!u){clearInterval(T.iv);return authView()}
+$('#auth').style.display='none';side.style.display=main.style.display='block';try{await load()}catch(e){main.innerHTML='<div class="card err">Could not load data: '+esc(e.message)+'</div>'}route()});
+/* ===== 6. Navigation ===== */
+const NAV=[['dash','Dashboard'],['profile','My Profile'],['assess','Stress Assessment'],['recs','AI Exercise Recommendations'],['trad','Traditional Exercises'],['hyb','Hybrid Exercises'],['start','Start Exercise'],['hist','Exercise History'],['prog','Progress Reports'],['set','Settings'],['out','Logout']];
+function route(){const [p,arg]=(location.hash.slice(1)||'dash').split('/');side.classList.remove('open');
+side.innerHTML='<h1>🌿 CalmPath</h1>'+NAV.map(([k,n])=>`<a href="#${k}" class="${k==p?'on':''}">${n}</a>`).join('');
+if(p=='out')return auth.signOut().then(()=>location.hash='');
+({dash,profile,assess,recs,trad:()=>list('Traditional'),hyb:()=>list('Hybrid'),start:()=>startPg(arg),hist,prog,set:settings}[p]||dash)()}
+window.onhashchange=()=>auth.currentUser&&route();
+/* ===== Arduino sensors via Web Serial (Chrome/Edge). Line format: bpm,ax,ay,az ===== */
+const HW={hr:0,m:0,reps:0,hrs:[],last:0,up:false};
+async function hwConnect(){try{const port=await navigator.serial.requestPort();await port.open({baudRate:115200});
+const rd=port.readable.pipeThrough(new TextDecoderStream()).getReader();let buf='';
+(async()=>{for(;;){const{value,done}=await rd.read();if(done)break;buf+=value;let i;while((i=buf.indexOf('\n'))>=0){hwLine(buf.slice(0,i).trim());buf=buf.slice(i+1)}}})()}
+catch(e){alert('Sensor connection failed: '+e.message)}}
+function hwLine(l){const p=l.split(',').map(Number);if(p.length<4||p.some(isNaN))return;const[bpm,ax,ay,az]=p;HW.hr=bpm;HW.m=Math.hypot(ax,ay,az);
+if(T.run){if(bpm>30&&bpm<220)HW.hrs.push(bpm);const n=Date.now();if(HW.m>1.3&&!HW.up&&n-HW.last>600){HW.reps++;HW.last=n;HW.up=true}if(HW.m<1.15)HW.up=false}
+const e=$('#hw');if(e)e.textContent=`Heart rate ${HW.hr||'—'} bpm · motion ${HW.m.toFixed(2)} g · movement count ${HW.reps}`}
+function hwStats(){const h=HW.hrs;return{heartRateAvg:h.length?Math.round(h.reduce((a,b)=>a+b,0)/h.length):null,heartRateMax:h.length?Math.max(...h):null,heartRateSamples:h.length,source:h.length?'arduino-mpu6050':'manual'}}
+/* ===== 7. Pages ===== */
+function exCard(e,why){const fav=(U.favorites||[]).includes(e.id);return`<div class="card"><div class="ex">${e.icon}</div><h3>${e.name}</h3><span class="tag">${e.cat}</span><span class="tag">${e.lvl}</span><span class="tag">${e.dur} min</span>
+<p>${e.desc}</p>${why?`<p><i>Suggested because: ${why.join('; ')}.</i></p>`:''}<details><summary>Steps &amp; benefits</summary><ol>${e.steps.map(s=>`<li>${s}</li>`).join('')}</ol><b>Benefits:</b> ${e.ben.join(', ')}</details><br>
+<div class="row"><a class="btn btn2" href="#start/${e.id}">Start Exercise</a><button class="ghost" onclick="fav('${e.id}')">${fav?'★ Saved':'☆ Save favourite'}</button></div></div>`}
+async function fav(id){const f=new Set(U.favorites||[]);f.has(id)?f.delete(id):f.add(id);U.favorites=[...f];await ref().set({favorites:U.favorites},{merge:true});route()}
+function list(c){main.innerHTML=`<h2>${c} Exercises</h2><div class="note">Sample wellness exercises, not medical treatment. Stop if anything hurts.</div><div class="grid">${E.filter(e=>e.cat==c).map(e=>exCard(e)).join('')}</div>`}
+function recs(){const r=recommend(),a=A[0];main.innerHTML=`<h2>AI Exercise Recommendations</h2><div class="note">Suggestions come from a transparent <b>rule-based</b> engine (no trained model yet) and are not medical treatment. Stress is self-reported.</div>`+
+(a?`<p>Based on your latest assessment (${a.stressPercentage}% stress, mood ${esc(a.mood)}, ${a.availableTime} min available):</p><div class="grid">${r.map(x=>exCard(x.e,x.why)).join('')}</div>`:'<div class="card">Complete a <a href="#assess">stress assessment</a> to get recommendations.</div>')}
+function dash(){const days={day:1,week:7,month:30},k=main.dataset.f||'week',cut=Date.now()-days[k]*864e5,sa=A.filter(x=>x.ts>=cut).reverse(),ss=S.filter(x=>x.ts>=cut),tot=S.reduce((s,x)=>s+x.duration,0);
+main.innerHTML=`<h2>Welcome, ${esc(U.name||'friend')} 👋</h2><div class="grid">
+<div class="card stat"><b>${A[0]?A[0].stressPercentage+'%':'—'}</b><span>Latest self-reported stress</span></div><div class="card stat"><b>${S.length}</b><span>Completed sessions</span></div><div class="card stat"><b>${mins(tot)}</b><span>Total minutes exercised</span></div><div class="card stat"><b>${(()=>{const h=S.filter(x=>x.heartRateAvg);return h.length?Math.round(h.reduce((a,x)=>a+x.heartRateAvg,0)/h.length)+" bpm":"—"})()}</b><span>Average heart rate (sensor sessions)</span></div></div>
+<div class="row" style="margin-bottom:12px">Show: ${['day','week','month'].map(f=>`<button class="${f==k?'':'ghost'}" onclick="main.dataset.f='${f}';dash()">${f[0].toUpperCase()+f.slice(1)}</button>`).join('')}</div>
+<div class="grid"><div class="card"><h3>Stress level (${k})</h3><div class="canv"><canvas id="c1"></canvas></div>${sa.length?'':empty}</div><div class="card"><h3>Activity summary (${k})</h3><div class="canv"><canvas id="c2"></canvas></div>${ss.length?'':empty}</div></div>
+<h3>Recommended for you</h3><div class="grid">${A[0]?recommend().slice(0,3).map(x=>exCard(x.e,x.why)).join(''):'<div class="card">Take your first <a href="#assess">stress assessment</a>.</div>'}</div>
+<div class="grid"><div class="card"><h3>Favourites</h3>${(U.favorites||[]).map(id=>`<a class="tag" href="#start/${id}">${E.find(e=>e.id==id)?.name}</a>`).join('')||empty}</div>
+<div class="card"><h3>Recent history</h3>${S.slice(0,5).map(x=>`<p>${esc(x.exerciseName)} · ${mins(x.duration)} min · ${fmtD(x.ts)}</p>`).join('')||empty}</div></div>`;
+ch('c1',{type:'line',data:{labels:sa.map(x=>fmtD(x.ts)),datasets:[{label:'Stress %',data:sa.map(x=>x.stressPercentage),borderColor:'#13315c',backgroundColor:'#8fd6a8',tension:.3}]},options:{scales:{y:{min:0,max:100}}}});
+const g={};ss.forEach(x=>g[fmtD(x.ts)]=(g[fmtD(x.ts)]||0)+x.duration/60);ch('c2',{type:'bar',data:{labels:Object.keys(g).reverse(),datasets:[{label:'Minutes',data:Object.values(g).reverse(),backgroundColor:'#8fd6a8'}]}})}
+function profile(){const L=['Beginner','Intermediate','Advanced'];main.innerHTML=`<h2>My Profile</h2><div class="card"><label>Full name</label><input id="n" value="${esc(U.name)}"><label>Email</label><input value="${esc(auth.currentUser.email)}" disabled>
+<div class="grid"><div><label>Age</label><input id="a" type="number" min="5" max="110" value="${U.age??''}"></div><div><label>Gender (optional)</label><input id="g" value="${esc(U.gender)}"></div><div><label>Height (cm)</label><input id="h" type="number" value="${U.height??''}"></div><div><label>Weight (kg)</label><input id="w" type="number" value="${U.weight??''}"></div></div>
+<label>Fitness experience</label><select id="f">${L.map(l=>`<option ${U.fitnessLevel==l?'selected':''}>${l}</option>`).join('')}</select>
+<label>Exercise preferences</label><div class="chk">${PREFS.map(p=>`<label><input type="checkbox" value="${p}" ${(U.preferences||[]).includes(p)?'checked':''}>${p}</label>`).join('')}</div>
+<label>Exercise limitations you choose to share (optional)</label><textarea id="l" rows="2">${esc(U.limitations)}</textarea><div class="err" id="er"></div><button id="sv">Save profile</button></div>`;
+$('#sv').onclick=async()=>{const v=id=>$(id).value.trim(),num=id=>v(id)===''?null:Number(v(id));const age=num('#a'),h=num('#h'),w=num('#w');
+if(!v('#n'))return $('#er').textContent='Name is required.';if(age!==null&&(age<5||age>110))return $('#er').textContent='Enter a valid age.';if((h!==null&&(h<50||h>260))||(w!==null&&(w<10||w>400)))return $('#er').textContent='Check height/weight values.';
+const d={name:v('#n'),age,gender:v('#g'),height:h,weight:w,fitnessLevel:v('#f'),limitations:v('#l'),preferences:[...document.querySelectorAll('.chk input:checked')].map(x=>x.value)};
+try{await ref().set(d,{merge:true});Object.assign(U,d);$('#er').style.color='#1e5a37';$('#er').textContent='Saved ✓'}catch(e){$('#er').textContent=e.message}}}
+function assess(){const o=a=>a.map(x=>`<option>${x}</option>`).join('');main.innerHTML=`<h2>Stress Assessment</h2><div class="note">Your stress percentage is self-reported and is <b>not a medical diagnosis</b>.</div>
+<div class="card"><label>1. Current stress percentage: <span id="sv">50</span>%</label><input type="range" id="s" min="0" max="100" value="50" oninput="sv.textContent=this.value">
+<label>2. Current mood</label><select id="m">${o(['Calm','Happy','Neutral','Tired','Anxious','Sad','Overwhelmed'])}</select>
+<label>3. How well did you sleep last night? (1 poor – 5 great)</label><select id="sl">${o([1,2,3,4,5])}</select><label>4. How mentally tired do you feel? (1 not – 5 very)</label><select id="f">${o([1,2,3,4,5])}</select>
+<label>5. Time available to exercise today</label><select id="t">${[5,10,15,20,30,45].map(x=>`<option value="${x}">${x} minutes</option>`).join('')}</select><div class="err" id="er"></div><button id="sb">Submit Assessment</button></div>
+<div class="card"><h3>Previous assessments</h3><div class="canv"><canvas id="c"></canvas></div>${A.length?'':empty}</div>`;
+const h=A.slice().reverse();ch('c',{type:'line',data:{labels:h.map(x=>fmtDT(x.ts)),datasets:[{label:'Stress %',data:h.map(x=>x.stressPercentage),borderColor:'#13315c',tension:.3}]},options:{scales:{y:{min:0,max:100}}}});
+$('#sb').onclick=async()=>{const d={stressPercentage:+$('#s').value,mood:$('#m').value,sleepQuality:+$('#sl').value,mentalFatigue:+$('#f').value,availableTime:+$('#t').value,timestamp:firebase.firestore.Timestamp.now()};
+try{await ref().collection('StressAssessments').add(d);await load();location.hash='#recs'}catch(e){$('#er').textContent=e.message}}}
+function startPg(id){const e=E.find(x=>x.id==id);
+if(!e){T.id=null;return main.innerHTML=`<h2>Start Exercise</h2><p>Select an exercise:</p><div class="grid">${E.map(x=>`<a class="card" style="text-decoration:none;color:inherit" href="#start/${x.id}">${x.icon} <b>${x.name}</b><br><small>${x.cat} · ${x.dur} min</small></a>`).join('')}</div>`}
+if(T.id!=id){clearInterval(T.iv);T={id,acc:0,start:0,run:false,iv:null,done:false}}
+const el=()=>T.acc+(T.run?Date.now()-T.start:0),tick=()=>{const s=Math.floor(el()/1e3),t=$('#timer');if(t)t.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+main.innerHTML=`<h2>${e.icon} ${e.name}</h2><div class="card"><span class="tag">${e.cat}</span><span class="tag">Suggested ${e.dur} min</span><ol>${e.steps.map(s=>`<li>${s}</li>`).join('')}</ol>
+<div id="timer">00:00</div><div class="row" style="justify-content:center"><button class="ghost" id="hwb">Connect Arduino sensors</button></div><p id="hw" style="text-align:center;color:#5b6b7d">Sensors not connected (manual mode)</p><div class="row" style="justify-content:center"><button id="b1" class="btn2">Start</button><button id="b2" class="ghost" disabled>Pause</button><button id="b3" disabled>Stop</button></div></div><div id="fm"></div>`;
+$('#hwb').onclick=()=>navigator.serial?hwConnect():alert('Web Serial needs Chrome or Edge.');const b1=$('#b1'),b2=$('#b2'),b3=$('#b3');
+b1.onclick=()=>{HW.hrs=[];HW.reps=0;T.run=true;T.start=Date.now();clearInterval(T.iv);T.iv=setInterval(tick,250);b1.disabled=true;b2.disabled=b3.disabled=false;b2.textContent='Pause'};
+b2.onclick=()=>{if(T.run){T.acc+=Date.now()-T.start;T.run=false;b2.textContent='Resume'}else{T.run=true;T.start=Date.now();b2.textContent='Pause'}};
+b3.onclick=()=>{if(T.run){T.acc+=Date.now()-T.start;T.run=false}clearInterval(T.iv);tick();b1.disabled=b2.disabled=b3.disabled=true;doneForm(e,Math.round(T.acc/1e3))};tick()}
+function doneForm(e,sec){const before=A[0]?.stressPercentage;
+if(sec<5)return $('#fm').innerHTML='<div class="card err">Session shorter than 5 seconds was not saved. <a href="#start/'+e.id+'">Try again</a></div>';
+if(before==null)return $('#fm').innerHTML='<div class="card">Please take a <a href="#assess">stress assessment</a> first so we can record your before-exercise stress. Your timer: '+mins(sec)+' min.</div>';
+$('#fm').innerHTML=`<div class="card"><h3>Session: ${mins(sec)} min (stress before: ${before}%)</h3><label>Repetitions / rounds (optional)</label><input id="rp" type="number" min="0" value="${HW.reps||''}">
+<label>Stress now: <span id="sa">${before}</span>%</label><input type="range" id="sf" min="0" max="100" value="${before}" oninput="sa.textContent=this.value"><label>How do you feel?</label><select id="fb"><option>Calmer</option><option>About the same</option><option>More energised</option><option>More tired</option><option>Worse</option></select>
+<label>Notes (optional)</label><textarea id="nt" rows="2"></textarea><div class="err" id="er"></div><button id="cp">Complete Exercise</button></div>`;
+$('#cp').onclick=async()=>{const r=$('#rp').value,d={userId:auth.currentUser.uid,exerciseId:e.id,exerciseName:e.name,exerciseCategory:e.cat,duration:sec,repetitions:r===''?null:+r,stressBefore:before,stressAfter:+$('#sf').value,...hwStats(),feedback:$('#fb').value+($('#nt').value.trim()?' – '+$('#nt').value.trim():''),timestamp:firebase.firestore.Timestamp.now()};
+try{await ref().collection('ExerciseSessions').add(d);await load();T.id=null;location.hash='#hist'}catch(x){$('#er').textContent=x.message}}}
+function hist(){main.innerHTML=`<h2>Exercise History</h2><div class="card" style="overflow:auto">${S.length?`<table><tr><th>Exercise</th><th>Category</th><th>Date</th><th>Duration</th><th>Reps</th><th>Stress before</th><th>Stress after</th><th>Avg HR</th></tr>${S.map(x=>`<tr><td>${esc(x.exerciseName)}</td><td>${x.exerciseCategory}</td><td>${fmtDT(x.ts)}</td><td>${mins(x.duration)} min</td><td>${x.repetitions??'—'}</td><td>${x.stressBefore}%</td><td>${x.stressAfter}%</td><td>${x.heartRateAvg?x.heartRateAvg+" bpm":"—"}</td></tr>`).join('')}</table>`:empty}</div>`}
+function prog(){const s=S.slice().reverse(),a=A.slice().reverse(),g={};s.forEach(x=>g[fmtD(x.ts)]=(g[fmtD(x.ts)]||0)+1);const tr=S.filter(x=>x.exerciseCategory=='Traditional').length;
+main.innerHTML=`<h2>Progress Reports</h2><div class="note">Before/after values are self-reports. They do not show that exercise caused any change in stress.</div><div class="grid">
+<div class="card"><h3>Exercise duration over time</h3><div class="canv"><canvas id="p1"></canvas></div></div><div class="card"><h3>Completed sessions per day</h3><div class="canv"><canvas id="p2"></canvas></div></div>
+<div class="card"><h3>Self-reported stress trend</h3><div class="canv"><canvas id="p3"></canvas></div></div><div class="card"><h3>Traditional vs hybrid</h3><div class="canv"><canvas id="p4"></canvas></div></div><div class="card"><h3>Average heart rate per session (sensor data only)</h3><div class="canv"><canvas id="p5"></canvas></div>${s.some(x=>x.heartRateAvg)?"":"<p style=\"color:#5b6b7d\">No sensor heart-rate data saved yet.</p>"}</div></div>${S.length||A.length?'':empty}`;
+ch('p1',{type:'line',data:{labels:s.map(x=>fmtD(x.ts)),datasets:[{label:'Minutes',data:s.map(x=>+mins(x.duration)),borderColor:'#13315c',tension:.3}]}});
+ch('p2',{type:'bar',data:{labels:Object.keys(g),datasets:[{label:'Sessions',data:Object.values(g),backgroundColor:'#8fd6a8'}]},options:{scales:{y:{ticks:{precision:0}}}}});
+ch('p3',{type:'line',data:{labels:a.map(x=>fmtD(x.ts)),datasets:[{label:'Assessment stress %',data:a.map(x=>x.stressPercentage),borderColor:'#13315c',tension:.3}]},options:{scales:{y:{min:0,max:100}}}});
+const hs=s.filter(x=>x.heartRateAvg);ch('p5',{type:'line',data:{labels:hs.map(x=>fmtD(x.ts)),datasets:[{label:'Avg bpm',data:hs.map(x=>x.heartRateAvg),borderColor:'#c0392b',tension:.3}]}});
+ch('p4',{type:'doughnut',data:{labels:['Traditional','Hybrid'],datasets:[{data:[tr,S.length-tr],backgroundColor:['#13315c','#8fd6a8']}]}})}
+function settings(){main.innerHTML=`<h2>Settings</h2><div class="card"><p>Signed in as ${esc(auth.currentUser.email)}</p><div class="row"><button id="r">Send password reset email</button><button class="ghost" id="x">Export my data (JSON)</button></div><p class="err" id="er"></p>
+<p style="color:#5b6b7d;font-size:13px">Recommendations use adjustable rules, not a trained AI model. Nothing here is medical advice or diagnosis. If you feel unsafe or in crisis, contact local emergency services or a qualified professional.</p></div>`;
+$('#r').onclick=async()=>{try{await auth.sendPasswordResetEmail(auth.currentUser.email);$('#er').style.color='#1e5a37';$('#er').textContent='Reset email sent.'}catch(e){$('#er').textContent=e.message}};
+$('#x').onclick=()=>{const b=new Blob([JSON.stringify({profile:U,assessments:A,sessions:S},null,2)],{type:'application/json'}),l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='my-data.json';l.click()}}
+</script></body></html>

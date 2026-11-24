@@ -1,0 +1,1 @@
+No composite indexes needed: queries only use orderBy('timestamp') within a single collection.
